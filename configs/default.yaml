@@ -1,0 +1,72 @@
+# LiveMesh default configuration
+# All parameters in one place. Override per-experiment via CLI or YAML merge.
+
+reconstruction:
+  method: "poisson"           # poisson | deep_currents | incremental
+  depth_camera: "realsense"   # realsense | kinect
+  target_latency_ms: 100
+  poisson:
+    depth: 8
+    scale: 1.1
+    linear_fit: false
+  deep_currents:
+    hidden_dim: 256
+    num_layers: 6
+    boundary_weight: 10.0
+    checkpoint: null
+
+toolpath:
+  method: "geodesic"          # geodesic | planar | honeycomb
+  geodesic:
+    spacing_mm: 1.5
+    adaptive_curvature: true
+    curvature_factor: 0.5     # tighter spacing on high-K regions
+    heat_method_t: 1.0
+  planar:
+    layer_height_mm: 0.4
+    line_spacing_mm: 1.5
+  honeycomb:
+    hex_side_divisor: 6
+    num_layers: 7
+    layer_height_mm: 0.4
+  path_simplification: 25     # keep every Nth point (from your MATLAB code)
+  replan_budget_ms: 500
+
+segmentation:
+  model: "unet"
+  input_size: [512, 512]
+  num_classes: 2
+  encoder_depth: 4
+  base_filters: 32
+  checkpoint: null
+
+calibration:
+  mm_per_pixel: 0.25          # must be measured per setup
+  origin_offset_mm: [50, 50]
+  camera_to_robot:
+    rotation: null             # 3x3 or quaternion, set after calibration
+    translation: null          # [x, y, z] in mm
+
+robot:
+  type: "gcode"               # gcode | ros2 | mycobot
+  gcode:
+    safe_z_mm: 5.0
+    work_z_mm: 0.5
+    feed_rate_mm_min: 1500
+  mycobot:
+    urdf: "assets/meshes/mycobot.urdf"
+    gantry_limits: [-0.5, 0.5]
+    ik_weights: [1, 1, 1, 1, 1, 1]
+
+pipeline:
+  depth_fps: 30
+  reconstruction_hz: 10
+  cnn_hz: 15
+  update_mesh_every_n_layers: 1
+  log_dir: "logs/"
+
+visualization:
+  backend: "polyscope"        # polyscope | matplotlib
+  colormap: "viridis"
+  figure_dpi: 300
+  figure_format: "pdf"
