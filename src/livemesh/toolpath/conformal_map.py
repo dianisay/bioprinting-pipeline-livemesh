@@ -173,3 +173,57 @@ def _nearest_simplex(tri, point):
     dists = np.linalg.norm(centroids - point, axis=1)
     idx = np.argmin(dists)
     return dists[idx], idx
+
+
+def uv_to_xyz(
+    traj_uv: NDArray[np.float64],
+    cyl_radius: float,
+    cyl_cy: float,
+    cyl_cz: float,
+    u_offset: float,
+    v_offset: float,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Map (3, N) UV trajectory to XYZ on a cylinder with UV offsets."""
+    u = traj_uv[0] + u_offset
+    v = traj_uv[1] + v_offset
+    h = traj_uv[2]
+    result = cylinder_conformal_map(
+        np.column_stack([u, v, h]), cyl_radius, cyl_cy, cyl_cz
+    )
+    return result.xyz_mm.T, result.normals.T
+
+
+def compute_nozzle_orientations(normals: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Compute tool rotation matrices from (3, N) surface normals."""
+    n = normals.T
+    n = n / (np.linalg.norm(n, axis=1, keepdims=True) + 1e-10)
+    R_targets = np.zeros((len(n), 3, 3))
+    world_x = np.array([1.0, 0.0, 0.0])
+
+    for i in range(len(n)):
+        z_tool = -n[i]
+        x_tool = np.cross(world_x, z_tool)
+        x_norm = np.linalg.norm(x_tool)
+        if x_norm < 1e-6:
+            x_tool = np.cross(np.array([0.0, 1.0, 0.0]), z_tool)
+            x_norm = np.linalg.norm(x_tool)
+        x_tool /= x_norm
+        y_tool = np.cross(z_tool, x_tool)
+        R_targets[i] = np.column_stack([x_tool, y_tool, z_tool])
+
+    return R_targets
+
+
+def apply_workspace_transform(
+    traj_xyz: NDArray[np.float64],
+    normals: NDArray[np.float64],
+    z_offset: float,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Scale mm→m, apply Rx(90°) base rotation, and offset Z for robot workspace."""
+    pts = traj_xyz.T * 0.001
+    nrm = normals.T.copy()
+    Rx90 = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], dtype=np.float64)
+    pts = pts @ Rx90.T
+    nrm = nrm @ Rx90.T
+    pts[:, 2] += z_offset
+    return pts.T, nrm.T

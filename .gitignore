@@ -19,7 +19,7 @@ env/
 *.swo
 
 # Data (large files tracked via Git LFS or excluded)
-*.stl
+# *.stl  # small STL assets tracked in assets/meshes/
 *.dae
 *.ply
 *.pcd
