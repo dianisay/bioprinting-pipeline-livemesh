@@ -13,9 +13,12 @@ curved anatomy.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import potpourri3d as pp3d
 import trimesh
 from numpy.typing import NDArray
@@ -64,6 +67,11 @@ def geodesic_toolpaths(
     import time
 
     t0 = time.perf_counter()
+    logger.info(
+        f"Geodesic toolpaths starting: {len(mesh.vertices)} vertices, "
+        f"{len(mesh.faces)} faces, spacing={spacing_mm} mm, "
+        f"adaptive_curvature={adaptive_curvature}"
+    )
 
     vertices = np.array(mesh.vertices, dtype=np.float64)
     faces = np.array(mesh.faces, dtype=np.int32)
@@ -72,6 +80,9 @@ def geodesic_toolpaths(
 
     if source_vertex is None:
         source_vertex = _select_source_vertex(mesh, solver)
+        logger.debug(f"Auto-selected source vertex: {source_vertex}")
+    else:
+        logger.debug(f"Using provided source vertex: {source_vertex}")
 
     distances = solver.compute_distance(source_vertex)
 
@@ -81,6 +92,10 @@ def geodesic_toolpaths(
         spacings = None
 
     contour_levels = _compute_contour_levels(distances, spacing_mm, spacings)
+    logger.debug(
+        f"Computed {len(contour_levels)} contour levels, "
+        f"max_geodesic_distance={np.max(distances[np.isfinite(distances)]):.2f} mm"
+    )
 
     all_waypoints = []
     all_normals = []
@@ -113,6 +128,10 @@ def geodesic_toolpaths(
 
     if not all_waypoints:
         elapsed = (time.perf_counter() - t0) * 1000
+        logger.warning(
+            f"No geodesic toolpaths generated from source vertex {source_vertex}, "
+            f"elapsed={elapsed:.1f} ms"
+        )
         return ToolpathResult(
             waypoints=np.empty((0, 3)),
             normals=np.empty((0, 3)),
@@ -127,13 +146,21 @@ def geodesic_toolpaths(
     is_dep = np.array(is_deposition, dtype=bool)
 
     elapsed = (time.perf_counter() - t0) * 1000
+    num_paths = len(path_lengths)
+    total_len = sum(path_lengths)
+    logger.info(
+        f"Geodesic toolpaths complete: source_vertex={source_vertex}, "
+        f"{len(contour_levels)} contours, {num_paths} paths, "
+        f"total_length={total_len:.1f} mm, {len(waypoints)} waypoints, "
+        f"elapsed={elapsed:.1f} ms"
+    )
 
     return ToolpathResult(
         waypoints=waypoints,
         normals=normals,
         path_lengths_mm=path_lengths,
-        total_length_mm=sum(path_lengths),
-        num_paths=len(path_lengths),
+        total_length_mm=total_len,
+        num_paths=num_paths,
         elapsed_ms=elapsed,
         is_deposition=is_dep,
     )
@@ -145,6 +172,7 @@ def _select_source_vertex(
     """Select source vertex: boundary vertex closest to centroid projected onto boundary."""
     boundary_edges = mesh.edges[trimesh.grouping.group_rows(mesh.edges_sorted, require_count=1)]
     if len(boundary_edges) == 0:
+        logger.warning("Mesh has no boundary edges, defaulting source vertex to 0")
         return 0
     boundary_verts = np.unique(boundary_edges)
     centroid = mesh.vertices[boundary_verts].mean(axis=0)

@@ -10,9 +10,12 @@ Metrics:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import trimesh
 from numpy.typing import NDArray
 
@@ -36,6 +39,10 @@ def benchmark_reconstruction(
 
     Uses dense point sampling for robust distance computation.
     """
+    logger.info(
+        f"Benchmarking reconstruction: {len(reconstructed.vertices)} vertices vs "
+        f"{len(ground_truth.vertices)} GT vertices, {num_samples} surface samples"
+    )
     gt_points, gt_face_idx = trimesh.sample.sample_surface(ground_truth, num_samples)
     gt_normals = ground_truth.face_normals[gt_face_idx]
 
@@ -52,6 +59,11 @@ def benchmark_reconstruction(
     angles_deg = np.degrees(np.arccos(np.abs(cos_angles)))
     mean_normal_dev = float(np.mean(angles_deg))
 
+    logger.info(
+        f"Benchmark metrics: hausdorff={hausdorff:.3f} mm, mean_distance={mean_dist:.3f} mm, "
+        f"normal_deviation={mean_normal_dev:.2f} deg, elapsed={elapsed_ms:.1f} ms"
+    )
+
     return BenchmarkResult(
         hausdorff_mm=hausdorff,
         mean_distance_mm=mean_dist,
@@ -67,10 +79,13 @@ def hausdorff_symmetric(
     num_samples: int = 10000,
 ) -> float:
     """Symmetric Hausdorff distance: max(d(A,B), d(B,A))."""
+    logger.debug(f"Computing symmetric Hausdorff with {num_samples} samples per mesh")
     pts_a = trimesh.sample.sample_surface(mesh_a, num_samples)[0]
     pts_b = trimesh.sample.sample_surface(mesh_b, num_samples)[0]
 
     _, dists_ab, _ = trimesh.proximity.closest_point(mesh_b, pts_a)
     _, dists_ba, _ = trimesh.proximity.closest_point(mesh_a, pts_b)
 
-    return float(max(np.max(dists_ab), np.max(dists_ba)))
+    result = float(max(np.max(dists_ab), np.max(dists_ba)))
+    logger.info(f"Symmetric Hausdorff distance: {result:.3f} mm")
+    return result

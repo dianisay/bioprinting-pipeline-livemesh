@@ -6,7 +6,11 @@ Takes a binary wound mask and produces:
 - N Cartesian boundary points
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import cv2
 from typing import Tuple, Optional
 
@@ -40,6 +44,11 @@ def mask_to_polar(
     if image_size is None:
         image_size = max(mask.shape)
 
+    logger.debug(
+        f"mask_to_polar: mask shape={mask.shape}, num_radii={num_radii}, "
+        f"image_size={image_size} px"
+    )
+
     # Binarize
     binary = (mask > 127).astype(np.uint8)
 
@@ -47,17 +56,22 @@ def mask_to_polar(
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     if not contours:
+        logger.warning("mask_to_polar: no contours found in mask")
         return _empty_polar(num_radii)
 
     # Take largest contour
     contour = max(contours, key=cv2.contourArea)
 
     if cv2.contourArea(contour) < 50:
+        logger.warning(
+            f"mask_to_polar: contour area {cv2.contourArea(contour):.1f} px² below threshold"
+        )
         return _empty_polar(num_radii)
 
     # Compute centroid via moments
     M = cv2.moments(contour)
     if M["m00"] == 0:
+        logger.warning("mask_to_polar: zero contour moment (m00=0)")
         return _empty_polar(num_radii)
 
     cx = M["m10"] / M["m00"]
@@ -109,6 +123,12 @@ def mask_to_polar(
     centroid_norm = np.array([cx / image_size, cy / image_size])
     radii_norm = radii / image_size
     points_norm = points / image_size
+    mean_radius = float(np.mean(radii_norm))
+
+    logger.info(
+        f"mask_to_polar complete: centroid=({centroid_norm[0]:.4f}, {centroid_norm[1]:.4f}), "
+        f"mean_radius={mean_radius:.4f} (normalized), {num_radii} radii"
+    )
 
     return {
         "centroid": centroid_norm.astype(np.float32),

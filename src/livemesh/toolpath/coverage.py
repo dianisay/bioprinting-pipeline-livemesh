@@ -7,9 +7,12 @@ Uses optimal-transport-based metrics following Solomon et al. (SIGGRAPH 2015).
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import trimesh
 from numpy.typing import NDArray
 
@@ -41,6 +44,10 @@ def coverage_uniformity(
     nozzle_width_mm : material deposition width (reach radius)
     num_samples : surface sampling density
     """
+    logger.info(
+        f"Coverage analysis starting: {len(waypoints)} waypoints, "
+        f"nozzle_width={nozzle_width_mm} mm, {num_samples} surface samples"
+    )
     surface_pts = trimesh.sample.sample_surface(mesh, num_samples)[0]
 
     from scipy.spatial import KDTree
@@ -58,6 +65,17 @@ def coverage_uniformity(
     uniformity = 1.0 - min(std_dist / (mean_dist + 1e-10), 1.0)
 
     w_dist = _wasserstein_1d_approx(distances)
+
+    logger.info(
+        f"Coverage metrics: fraction={coverage_fraction:.1%}, "
+        f"uniformity={uniformity:.3f}, mean_distance={mean_dist:.2f} mm, "
+        f"max_gap={max_gap:.2f} mm, wasserstein={w_dist:.4f}"
+    )
+    if coverage_fraction < 0.9:
+        logger.warning(
+            f"Low surface coverage: {coverage_fraction:.1%} "
+            f"(max_gap={max_gap:.2f} mm)"
+        )
 
     return CoverageResult(
         coverage_fraction=coverage_fraction,
@@ -95,7 +113,14 @@ def coverage_comparison_table(
             "geodesic_adaptive": adaptive_waypoints,
         })
     """
-    return {
+    logger.info(f"Comparing coverage across {len(toolpaths)} toolpath strategies")
+    results = {
         name: coverage_uniformity(mesh, waypoints, nozzle_width_mm)
         for name, waypoints in toolpaths.items()
     }
+    for name, res in results.items():
+        logger.info(
+            f"  [{name}] coverage={res.coverage_fraction:.1%}, "
+            f"uniformity={res.uniformity_score:.3f}, max_gap={res.max_gap_mm:.2f} mm"
+        )
+    return results

@@ -4,7 +4,11 @@ Translates Section 2 of MuffinFresa_ConformalMapping.m to Python.
 Uses numpy-stl for mesh I/O and pure numpy for geometry.
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -25,6 +29,7 @@ def load_stl(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
     vertices, inverse = np.unique(raw_verts, axis=0, return_inverse=True)
     faces = inverse.reshape(-1, 3)
 
+    logger.debug(f"Loaded STL: {len(vertices)} vertices, {len(faces)} faces")
     return vertices, faces
 
 
@@ -51,6 +56,10 @@ def fit_cylinder_kasa(points: np.ndarray) -> Dict[str, float]:
     cz = x_fit[1] / 2.0
     radius = np.sqrt(x_fit[2] + cy**2 + cz**2)
 
+    logger.info(
+        f"Cylinder fit (Kasa): radius={radius:.2f} mm, "
+        f"center_yz=({cy:.2f}, {cz:.2f}) mm"
+    )
     return {"cy": cy, "cz": cz, "radius": radius}
 
 
@@ -241,6 +250,11 @@ def compute_void_bounds(
         )
     shell_thickness = side_r.max() - side_r.min()
 
+    logger.info(
+        f"Void bounds: width={float(np.diff(u_range)[0]):.1f} mm, "
+        f"length={float(np.diff(v_range)[0]):.1f} mm, "
+        f"shell_thickness={shell_thickness:.2f} mm"
+    )
     return {
         "theta_min": theta_min,
         "theta_max": theta_max,
@@ -260,22 +274,34 @@ def analyze_scaffold(stl_path: str, angle_threshold: float = 35.0) -> Dict:
     Returns:
         dict with all scaffold geometry and void information
     """
+    logger.info(f"Scaffold analysis starting: {stl_path}")
     vertices, faces = load_stl(stl_path)
     vertices = rotate_rx90(vertices)
+    logger.debug(f"Applied Rx90 rotation to {len(vertices)} vertices")
 
     cyl = fit_cylinder_kasa(vertices)
 
     sharp_edges = find_sharp_edges(vertices, faces, angle_threshold)
+    logger.info(
+        f"Sharp edge detection: {len(sharp_edges)} edges "
+        f"(threshold={angle_threshold:.1f} deg)"
+    )
     components = connected_components(sharp_edges)
+    logger.debug(f"Found {len(components)} connected components")
 
     void_vid = select_void_component(
         vertices, components, cyl["cy"], cyl["cz"], cyl["radius"]
     )
+    logger.info(f"Void component selected: {len(void_vid)} vertices")
 
     bounds = compute_void_bounds(
         vertices, void_vid, cyl["cy"], cyl["cz"], cyl["radius"]
     )
 
+    logger.info(
+        f"Scaffold analysis complete: void={bounds['void_width']:.1f}x"
+        f"{bounds['void_length']:.1f} mm, shell={bounds['shell_thickness']:.2f} mm"
+    )
     return {
         "vertices": vertices,
         "faces": faces,

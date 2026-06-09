@@ -7,9 +7,12 @@ Ported from your MATLAB G-code generation logic.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import trimesh
 from numpy.typing import NDArray
 
@@ -42,8 +45,14 @@ def planar_slice(
     """
     bounds = mesh.bounds
     z_min, z_max = bounds[0][2], bounds[1][2]
+    logger.info(
+        f"Planar slicing starting: Z range=[{z_min:.2f}, {z_max:.2f}] mm, "
+        f"layer_height={layer_height_mm} mm, line_spacing={line_spacing_mm} mm, "
+        f"direction={direction}"
+    )
 
     heights = np.arange(z_min + layer_height_mm, z_max, layer_height_mm)
+    logger.debug(f"Generated {len(heights)} layer heights")
 
     all_waypoints = []
     for i, z in enumerate(heights):
@@ -65,6 +74,10 @@ def planar_slice(
             all_waypoints.append(layer_pts)
 
     if not all_waypoints:
+        logger.warning(
+            f"Planar slicing produced no waypoints across {len(heights)} layers "
+            f"in Z range [{z_min:.2f}, {z_max:.2f}] mm"
+        )
         return PlanarSliceResult(
             waypoints=np.empty((0, 3)),
             layer_heights=[],
@@ -74,6 +87,12 @@ def planar_slice(
 
     waypoints = np.vstack(all_waypoints)
     total_len = float(np.sum(np.linalg.norm(np.diff(waypoints, axis=0), axis=1)))
+    num_layers = len(heights)
+    logger.info(
+        f"Planar slicing complete: {num_layers} layers, "
+        f"Z range=[{z_min:.2f}, {z_max:.2f}] mm, "
+        f"total_length={total_len:.1f} mm, {len(waypoints)} waypoints"
+    )
 
     return PlanarSliceResult(
         waypoints=waypoints,

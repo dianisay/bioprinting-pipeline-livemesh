@@ -4,7 +4,11 @@ Trains encoder + decoder with early stopping, logging, and checkpointing.
 Designed to run on Kaggle GPU or locally on CPU (slower).
 """
 
+import logging
+
 import torch
+
+logger = logging.getLogger(__name__)
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
@@ -51,7 +55,7 @@ class Trainer:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(device)
-        print(f"Using device: {self.device}")
+        logger.info(f"Training device: {self.device}")
 
         # Build model
         self.encoder = CNNTransformerEncoder(
@@ -110,11 +114,11 @@ class Trainer:
         best_val_loss = float("inf")
         patience_counter = 0
 
-        print(f"\nTraining {self.decoder_type} decoder")
-        print(f"  Epochs: {self.max_epochs}, Patience: {self.patience}")
-        print(f"  Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
-        print("-" * 60)
-
+        logger.info(
+            f"Training {self.decoder_type} decoder: epochs={self.max_epochs}, "
+            f"patience={self.patience}, train_batches={len(train_loader)}, "
+            f"val_batches={len(val_loader)}"
+        )
         for epoch in range(1, self.max_epochs + 1):
             t0 = time.time()
 
@@ -130,32 +134,35 @@ class Trainer:
             self.history["lr"].append(self.scheduler.get_last_lr()[0])
             self.history["epoch_time"].append(epoch_time)
 
-            # Print progress
-            print(
-                f"  Epoch {epoch:3d}/{self.max_epochs} | "
-                f"Train: {train_loss:.4f} | Val: {val_loss:.4f} | "
-                f"LR: {self.history['lr'][-1]:.2e} | "
-                f"Time: {epoch_time:.1f}s"
+            logger.info(
+                f"Epoch {epoch}/{self.max_epochs}: train_loss={train_loss:.4f}, "
+                f"val_loss={val_loss:.4f}, lr={self.history['lr'][-1]:.2e}, "
+                f"time={epoch_time:.1f} s"
             )
-
             # Early stopping
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
                 self._save_checkpoint("best.pth", epoch, val_loss)
+                logger.info(
+                    f"New best model saved: val_loss={val_loss:.4f} at epoch {epoch}"
+                )
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
-                    print(f"\n  Early stopping at epoch {epoch} (patience={self.patience})")
+                    logger.info(
+                        f"Early stopping at epoch {epoch} (patience={self.patience})"
+                    )
                     break
 
         # Save final checkpoint and history
         self._save_checkpoint("final.pth", epoch, val_loss)
         self._save_history()
 
-        print(f"\n  Best val loss: {best_val_loss:.4f}")
-        print(f"  Results saved to: {self.output_dir}")
-
+        logger.info(
+            f"Training complete: best_val_loss={best_val_loss:.4f}, "
+            f"results_dir={self.output_dir}"
+        )
         return self.history
 
     def _train_epoch(self, loader: DataLoader) -> float:
@@ -247,7 +254,7 @@ class Trainer:
                 "num_points": self._get_num_points(),
             },
         }, self.output_dir / filename)
-
+        logger.debug(f"Checkpoint saved: {self.output_dir / filename} (epoch={epoch})")
     def _get_num_points(self) -> int:
         if self.decoder_type == "polar":
             return self.decoder.num_radii

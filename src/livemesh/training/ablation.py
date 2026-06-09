@@ -4,7 +4,11 @@ Produces comparative results for the thesis (Section 4.2).
 Designed to be run on Kaggle GPU.
 """
 
+import logging
+
 import json
+
+logger = logging.getLogger(__name__)
 import time
 from pathlib import Path
 
@@ -37,15 +41,11 @@ def run_ablation(
     decoder_types = ["polar", "detr", "autoregressive"]
     all_results = {}
 
-    print("=" * 70)
-    print("ABLATION STUDY: Polar vs DETR vs Autoregressive Decoder")
-    print("=" * 70)
-    print(f"  Epochs: {max_epochs}, Patience: {patience}, LR: {lr}")
-    print(f"  Batch size: {batch_size}, Num points: {num_points}")
-    print(f"  Pretrained backbone: {pretrained}")
-    print(f"  Output: {output_dir}")
-    print()
-
+    logger.info(
+        f"Ablation study starting: decoders={decoder_types}, epochs={max_epochs}, "
+        f"patience={patience}, lr={lr}, batch_size={batch_size}, "
+        f"num_points={num_points}, pretrained={pretrained}, output={output_dir}"
+    )
     # Create dataloaders once (shared across all variants)
     train_loader, val_loader, test_loader = create_dataloaders(
         fuseg_dir=fuseg_dir,
@@ -56,11 +56,11 @@ def run_ablation(
 
     total_start = time.time()
 
-    for decoder_type in decoder_types:
-        print(f"\n{'='*70}")
-        print(f"  Training: {decoder_type.upper()} decoder")
-        print(f"{'='*70}")
-
+    for i, decoder_type in enumerate(decoder_types):
+        logger.info(
+            f"Ablation progress [{i + 1}/{len(decoder_types)}]: "
+            f"training {decoder_type.upper()} decoder"
+        )
         trainer = Trainer(
             decoder_type=decoder_type,
             lr=lr,
@@ -89,36 +89,33 @@ def run_ablation(
             "convergence_epoch": history["val_loss"].index(min(history["val_loss"])) + 1,
             "total_epochs": len(history["val_loss"]),
         }
+        logger.info(
+            f"Ablation [{decoder_type}] complete: best_val_loss="
+            f"{all_results[decoder_type]['best_val_loss']:.4f}, "
+            f"convergence_epoch={all_results[decoder_type]['convergence_epoch']}"
+        )
 
     total_time = time.time() - total_start
 
-    # Print comparison table
-    print(f"\n\n{'='*70}")
-    print("ABLATION RESULTS COMPARISON")
-    print(f"{'='*70}")
-    print(f"  {'Metric':<15} {'Polar':>12} {'DETR':>12} {'Autoregr.':>12}")
-    print(f"  {'-'*51}")
-
+    logger.info("Ablation comparison:")
     for metric in ["chamfer", "hausdorff", "iou", "closure", "ordering"]:
-        values = []
-        for dt in decoder_types:
-            v = all_results[dt]["eval"][metric]["mean"]
-            values.append(v)
-        print(f"  {metric:<15} {values[0]:>12.4f} {values[1]:>12.4f} {values[2]:>12.4f}")
+        values = [all_results[dt]["eval"][metric]["mean"] for dt in decoder_types]
+        logger.info(
+            f"  {metric}: polar={values[0]:.4f}, detr={values[1]:.4f}, "
+            f"autoregressive={values[2]:.4f}"
+        )
 
-    print(f"\n  {'Convergence':<15} ", end="")
-    for dt in decoder_types:
-        print(f"{all_results[dt]['convergence_epoch']:>12d}", end="")
-    print(" epochs")
-
-    print(f"\n  Total training time: {total_time/60:.1f} minutes")
-
+    conv_epochs = [all_results[dt]["convergence_epoch"] for dt in decoder_types]
+    logger.info(
+        f"Convergence epochs: polar={conv_epochs[0]}, detr={conv_epochs[1]}, "
+        f"autoregressive={conv_epochs[2]}"
+    )
+    logger.info(f"Ablation total time: {total_time / 60:.1f} min")
     # Save comparison
     comparison_path = Path(output_dir) / "ablation_comparison.json"
     with open(comparison_path, "w") as f:
         json.dump(all_results, f, indent=2)
-    print(f"  Comparison saved to: {comparison_path}")
-
+    logger.info(f"Ablation comparison saved to {comparison_path}")
     return all_results
 
 

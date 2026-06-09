@@ -4,8 +4,12 @@ Uses Miller-Tucker-Zemlin (MTZ) formulation solved via PuLP (MILP).
 Translates Section 3b of MuffinFresa_ConformalMapping.m.
 """
 
+import logging
+
 import numpy as np
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def solve_tsp_mtz(distance_matrix: np.ndarray, time_limit: int = 60) -> np.ndarray:
@@ -24,6 +28,7 @@ def solve_tsp_mtz(distance_matrix: np.ndarray, time_limit: int = 60) -> np.ndarr
     import pulp
 
     n = len(distance_matrix)
+    logger.info(f"TSP MTZ solve starting: {n} cells, time_limit={time_limit} s")
     N = n + 1  # Add dummy node for open path
 
     # Expand distance matrix with dummy node (zero cost)
@@ -70,7 +75,10 @@ def solve_tsp_mtz(distance_matrix: np.ndarray, time_limit: int = 60) -> np.ndarr
     prob.solve(solver)
 
     if prob.status != pulp.constants.LpStatusOptimal:
-        print("TSP solver did not find optimal solution, using sequential order.")
+        logger.warning(
+            f"TSP solver status={pulp.LpStatus[prob.status]}, "
+            f"using sequential order fallback"
+        )
         return np.arange(n)
 
     # Extract tour by following arcs from dummy node
@@ -91,6 +99,7 @@ def solve_tsp_mtz(distance_matrix: np.ndarray, time_limit: int = 60) -> np.ndarr
 
     # Remove dummy node, keep only real nodes
     tour = tour_full[tour_full < n]
+    logger.info(f"TSP MTZ solve complete: optimal tour over {len(tour)} cells")
     return tour
 
 
@@ -157,6 +166,9 @@ def optimize_visitation_order(
     seq_cost = sum(D[i, i + 1] for i in range(n - 1))
     opt_cost = sum(D[tour_order[i], tour_order[i + 1]] for i in range(n - 1))
     savings = 100 * (seq_cost - opt_cost) / (seq_cost + 1e-10)
-    print(f"  TSP: sequential={seq_cost:.1f}mm, optimal={opt_cost:.1f}mm (saved {savings:.1f}%)")
+    logger.info(
+        f"TSP visitation order: sequential={seq_cost:.1f} mm, "
+        f"optimal={opt_cost:.1f} mm, improvement={savings:.1f}%"
+    )
 
     return cell_indices[tour_order]

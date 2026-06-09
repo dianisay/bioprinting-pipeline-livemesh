@@ -164,22 +164,48 @@ class LiveMeshPipeline:
         """
         t0 = time.perf_counter()
         result = {}
+        iteration = self.state.iteration + 1
+        logger.info(f"Pipeline frame {iteration} starting")
 
         # Stage 1: PERCEIVE
         if rgb_image is not None:
+            logger.info("Stage PERCEIVE starting")
             result["perception"] = self._perceive(rgb_image)
+            logger.info(
+                f"Stage PERCEIVE complete: {result['perception']['elapsed_ms']:.1f} ms"
+            )
 
         # Stage 2: RECONSTRUCT
         if depth_points is not None:
+            logger.info(
+                f"Stage RECONSTRUCT starting: {len(depth_points)} depth points"
+            )
             result["reconstruction"] = self._reconstruct(depth_points, depth_normals)
+            logger.info(
+                f"Stage RECONSTRUCT complete: "
+                f"{result['reconstruction']['num_vertices']} vertices, "
+                f"{result['reconstruction']['elapsed_ms']:.1f} ms"
+            )
 
         # Stage 3: PLAN
         if self.state.current_mesh is not None:
+            logger.info(
+                f"Stage PLAN starting: method={self.config.toolpath_method}"
+            )
             result["toolpath"] = self._plan_toolpath()
+            logger.info(
+                f"Stage PLAN complete: {result['toolpath']['elapsed_ms']:.1f} ms"
+            )
 
         # Stage 4: GENERATE COMMANDS
         if self.state.current_waypoints is not None:
+            logger.info(
+                f"Stage EXECUTE starting: robot_type={self.config.robot_type}"
+            )
             result["robot_commands"] = self._generate_commands()
+            logger.info(
+                f"Stage EXECUTE complete: {result['robot_commands']['elapsed_ms']:.1f} ms"
+            )
 
         self.state.iteration += 1
         elapsed = (time.perf_counter() - t0) * 1000
@@ -187,6 +213,9 @@ class LiveMeshPipeline:
         result["elapsed_ms"] = elapsed
         result["iteration"] = self.state.iteration
 
+        logger.info(
+            f"Pipeline frame {self.state.iteration} complete: total={elapsed:.1f} ms"
+        )
         return result
 
     def _perceive(self, rgb_image: NDArray[np.uint8]) -> dict[str, Any]:
@@ -364,6 +393,7 @@ class LiveMeshPipeline:
         from livemesh.toolpath.planar_slicer import planar_slice
 
         mesh = self.state.current_mesh or ground_truth_mesh
+        logger.info(f"Pipeline benchmark starting: {num_trials} trials")
 
         rec_bench = None
         if self.state.current_mesh is not None and ground_truth_mesh is not None:
@@ -380,6 +410,10 @@ class LiveMeshPipeline:
 
         coverage = coverage_comparison_table(mesh, toolpaths) if toolpaths else {}
 
+        logger.info(
+            f"Pipeline benchmark complete: geodesic={geodesic_tp.num_paths} paths, "
+            f"planar={planar_tp.num_layers} layers"
+        )
         return {
             "reconstruction": rec_bench,
             "coverage": coverage,
@@ -398,6 +432,7 @@ class LiveMeshPipeline:
         if stage not in self.state.stage_timings:
             self.state.stage_timings[stage] = []
         self.state.stage_timings[stage].append(elapsed_ms)
+        logger.debug(f"Stage {stage} timing recorded: {elapsed_ms:.1f} ms")
 
     def timing_summary(self) -> dict[str, dict[str, float]]:
         """Return mean/max/min timing per pipeline stage."""

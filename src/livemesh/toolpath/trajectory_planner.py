@@ -4,8 +4,12 @@ Combines honeycomb grid, TSP ordering, and UV trajectory generation.
 Translates Section 4 of MuffinFresa_ConformalMapping.m.
 """
 
+import logging
+
 import numpy as np
 from typing import Dict, Tuple
+
+logger = logging.getLogger(__name__)
 
 from .honeycomb import create_hex_grid, hexagon_perimeter, compute_grid_params, line_points
 from .tsp_solver import optimize_visitation_order
@@ -37,6 +41,10 @@ def generate_uv_trajectories(
         and 'combined' as the concatenated full trajectory
     """
     num_layers = int(np.ceil(wall_height / layer_height))
+    logger.info(
+        f"UV trajectory generation: {len(cell_indices)} cells, "
+        f"hex_side={hex_side:.2f} mm, {num_layers} layers, rise={rise:.1f} mm"
+    )
 
     def _trace_cells(indices):
         """Generate trajectory for a set of cells (outline or fill)."""
@@ -101,6 +109,11 @@ def generate_uv_trajectories(
     deposit_traj = np.hstack(deposit_list) if deposit_list else np.empty((3, 0))
 
     combined = np.hstack([outline_traj, fill_traj, deposit_traj])
+    logger.info(
+        f"UV trajectories complete: outline={outline_traj.shape[1]} pts, "
+        f"fill={fill_traj.shape[1]} pts, deposit={deposit_traj.shape[1]} pts, "
+        f"combined={combined.shape[1]} pts"
+    )
 
     return {
         "outline": outline_traj,
@@ -145,10 +158,18 @@ def plan_full_trajectory(
     void_length = void_bounds["void_length"]
     wall_height = void_bounds["shell_thickness"]
 
+    logger.info(
+        f"Full trajectory planning starting: void={void_width:.1f}x{void_length:.1f} mm, "
+        f"cylinder radius={cyl_radius:.2f} mm, optimize_tsp={optimize_tsp}"
+    )
+
     # Grid parameters
     nx, ny, hex_side = compute_grid_params(void_width, void_length)
-    print(f"  Honeycomb: {nx}x{ny} cells, hex_side={hex_side:.1f}mm")
-    print(f"  Wall height={wall_height:.1f}mm ({int(np.ceil(wall_height/layer_height))} layers)")
+    num_layers = int(np.ceil(wall_height / layer_height))
+    logger.info(
+        f"Planning phases: honeycomb {nx}x{ny} cells, hex_side={hex_side:.1f} mm, "
+        f"wall_height={wall_height:.1f} mm ({num_layers} layers)"
+    )
 
     # Generate grid
     grid = create_hex_grid(nx, ny, hex_side)
@@ -158,9 +179,11 @@ def plan_full_trajectory(
 
     # TSP optimization
     if optimize_tsp and len(cell_indices) > 2:
+        logger.info(f"TSP optimization phase: {len(cell_indices)} cells")
         cell_indices = optimize_visitation_order(grid, cell_indices, rise)
 
     # UV trajectories
+    logger.info("UV trajectory generation phase")
     traj_uv_dict = generate_uv_trajectories(
         grid, cell_indices, hex_side, rise, layer_height, wall_height
     )
@@ -173,16 +196,19 @@ def plan_full_trajectory(
     v_offset = np.mean(void_bounds["v_range"]) - grid_v_extent / 2.0
 
     # UV → XYZ
+    logger.info("Conformal UV→XYZ mapping phase")
     traj_xyz, normals = uv_to_xyz(traj_uv, cyl_radius, cyl_cy, cyl_cz, u_offset, v_offset)
 
     # Nozzle orientations
+    logger.info("Nozzle orientation computation phase")
     R_targets = compute_nozzle_orientations(normals)
 
     # Workspace transform (mm→m, base rotation, Z offset)
+    logger.info(f"Workspace transform phase: z_offset={z_offset:.3f} m")
     traj_m, normals_t = apply_workspace_transform(traj_xyz, normals, z_offset)
 
     n_pts = traj_uv.shape[1]
-    print(f"  Total trajectory points: {n_pts}")
+    logger.info(f"Full trajectory planning complete: {n_pts} trajectory points")
 
     return {
         "traj_uv": traj_uv,

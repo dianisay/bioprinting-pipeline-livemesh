@@ -12,9 +12,13 @@ Python equivalents of your MATLAB operations:
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 
 import cv2
+
+logger = logging.getLogger(__name__)
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -49,7 +53,12 @@ def segment_wound(
     - simplification_factor=25 matches boundary(1:25:end, :)
     - mm_per_pixel=0.25 and origin_offset match your calibration placeholders
     """
+    t0 = time.perf_counter()
     h_orig, w_orig = image.shape[:2]
+    logger.info(
+        f"Wound segmentation starting: image={w_orig}x{h_orig} px, "
+        f"input_size={input_size}, device={device}"
+    )
     resized = cv2.resize(image, input_size)
     tensor = _image_to_tensor(resized, device)
 
@@ -71,6 +80,10 @@ def segment_wound(
 
     contours = find_contours(filled.astype(float), 0.5)
     if not contours:
+        elapsed = (time.perf_counter() - t0) * 1000
+        logger.warning(
+            f"No wound boundary found after segmentation, elapsed={elapsed:.1f} ms"
+        )
         return SegmentationResult(
             mask=filled,
             boundary=np.empty((0, 2)),
@@ -89,6 +102,15 @@ def segment_wound(
 
     area_px = int(np.sum(filled))
     area_mm2 = area_px * mm_per_pixel**2
+    boundary_len_px = float(np.sum(np.linalg.norm(np.diff(boundary, axis=0), axis=1)))
+    boundary_len_mm = boundary_len_px * mm_per_pixel
+    elapsed = (time.perf_counter() - t0) * 1000
+
+    logger.info(
+        f"Wound segmentation complete: area={area_mm2:.1f} mm² ({area_px} px), "
+        f"boundary_length={boundary_len_mm:.1f} mm ({len(boundary)} points), "
+        f"elapsed={elapsed:.1f} ms"
+    )
 
     return SegmentationResult(
         mask=filled,

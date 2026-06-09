@@ -6,7 +6,11 @@ avoidance and Super-Twisting sliding-mode control for the 8-DOF system.
 Translates Sections 8 and 7 (APF+STW) of test_obstacle_avoidance.m.
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from typing import Dict, Optional, Tuple
 from scipy.optimize import minimize
 
@@ -193,6 +197,9 @@ def apf_stw_refine(
         q = q + params.dt * q_dot
         q = np.clip(q, jlim[:, 0], jlim[:, 1])
 
+    logger.debug(
+        f"APF+STW refine: iterations={final_iter}, pos_err={best_err * 1000:.3f} mm"
+    )
     return best_q, {"iter": final_iter, "pos_err": best_err}
 
 
@@ -300,6 +307,11 @@ class InverseKinematicsSolver:
         J_final = geometric_jacobian_8dof(best_q)
         mu = manipulability(J_final)
 
+        logger.info(
+            f"IK solve complete: phase={phase}, pos_err={best_err * 1000:.3f} mm, "
+            f"manipulability={mu:.6f}"
+        )
+
         return best_q, {
             "pos_err": best_err,
             "manipulability": mu,
@@ -325,7 +337,7 @@ class InverseKinematicsSolver:
         self.q_prev = home_configuration()
         self.q_prev_good = home_configuration()
 
-        print(f"  Solving IK for {N} points...")
+        logger.info(f"Solving IK trajectory: {N} points")
 
         for i in range(N):
             T_target = np.eye(4)
@@ -340,11 +352,17 @@ class InverseKinematicsSolver:
             phases[i] = info["phase"]
 
             if (i + 1) % 100 == 0:
-                print(f"    [{i+1}/{N}] err={errors[i]*1000:.3f}mm, mu={mu_values[i]:.4f}")
+                logger.info(
+                    f"IK progress [{i + 1}/{N}]: err={errors[i] * 1000:.3f} mm, "
+                    f"mu={mu_values[i]:.4f}, phase={phases[i]}"
+                )
 
-        print(f"  IK complete. Max err: {errors.max()*1000:.3f}mm, "
-              f"Mean err: {errors.mean()*1000:.3f}mm")
-        print(f"  APF activated: {(phases > 0).sum()}/{N} points")
+        apf_count = int((phases > 0).sum())
+        logger.info(
+            f"IK trajectory complete: max_err={errors.max() * 1000:.3f} mm, "
+            f"mean_err={errors.mean() * 1000:.3f} mm, "
+            f"APF activated={apf_count}/{N} points"
+        )
 
         return {
             "q_solutions": q_solutions,

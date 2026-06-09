@@ -4,8 +4,12 @@ Generates a hexagonal lattice sized to fill the detected void.
 Translates Section 3 of MuffinFresa_ConformalMapping.m.
 """
 
+import logging
+
 import numpy as np
 from typing import Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def create_hex_grid(nx: int, ny: int, hex_side: float) -> np.ndarray:
@@ -32,6 +36,11 @@ def create_hex_grid(nx: int, ny: int, hex_side: float) -> np.ndarray:
     Y[:, ::2] = Y[:, ::2] + y_spacing / 2.0
 
     grid = np.stack([X, Y], axis=-1)
+    cell_count = nx * ny
+    logger.info(
+        f"Hex grid created: {nx}x{ny} = {cell_count} cells, "
+        f"hex_side={hex_side:.2f} mm, spacing=({x_spacing:.2f}, {y_spacing:.2f}) mm"
+    )
     return grid
 
 
@@ -131,6 +140,10 @@ def compute_grid_params(void_width: float, void_length: float) -> Tuple[int, int
     hex_side = min(void_width, void_length) / 6.0
     nx = max(2, int(void_width / (hex_side * 1.5)))
     ny = max(2, int(void_length / (hex_side * np.sqrt(3))))
+    logger.info(
+        f"Grid params from void ({void_width:.1f} x {void_length:.1f} mm): "
+        f"{nx}x{ny} cells, hex_side={hex_side:.2f} mm"
+    )
     return nx, ny, hex_side
 
 

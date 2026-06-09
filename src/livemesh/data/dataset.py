@@ -3,7 +3,11 @@
 Handles both FUSeg (real) and synthetic data, with unified polar GT format.
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 import cv2
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -43,11 +47,26 @@ class WoundBoundaryDataset(Dataset):
         self.num_radii = num_radii
         self.augment = augment
         self.samples = []
+        sources_loaded = []
 
         if fuseg_dir:
+            n_before = len(self.samples)
             self._load_fuseg(Path(fuseg_dir), split)
+            n_fuseg = len(self.samples) - n_before
+            if n_fuseg > 0:
+                sources_loaded.append(f"fuseg={n_fuseg}")
         if synthetic_dir:
+            n_before = len(self.samples)
             self._load_synthetic(Path(synthetic_dir), split)
+            n_synth = len(self.samples) - n_before
+            if n_synth > 0:
+                sources_loaded.append(f"synthetic={n_synth}")
+
+        logger.info(
+            f"Dataset '{split}' initialized: {len(self.samples)} samples, "
+            f"sources=[{', '.join(sources_loaded) or 'none'}], "
+            f"image_size={image_size} px, num_radii={num_radii}"
+        )
 
     def _load_fuseg(self, root: Path, split: str):
         """Load FUSeg dataset with train/val/test split."""
@@ -55,6 +74,7 @@ class WoundBoundaryDataset(Dataset):
         masks_dir = root / "masks"
 
         if not images_dir.exists():
+            logger.warning(f"FUSeg images directory not found: {images_dir}")
             return
 
         all_files = sorted(images_dir.glob("*.png")) + sorted(images_dir.glob("*.jpg"))
@@ -86,6 +106,7 @@ class WoundBoundaryDataset(Dataset):
         """Load synthetic dataset with pre-computed labels."""
         labels_path = root / "labels.npz"
         if not labels_path.exists():
+            logger.warning(f"Synthetic labels not found: {labels_path}")
             return
 
         data = np.load(labels_path, allow_pickle=True)
@@ -227,5 +248,8 @@ def create_dataloaders(
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    print(f"Dataset sizes — Train: {len(train_ds)}, Val: {len(val_ds)}, Test: {len(test_ds)}")
+    logger.info(
+        f"Dataloaders created: train={len(train_ds)}, val={len(val_ds)}, "
+        f"test={len(test_ds)} samples, batch_size={batch_size}"
+    )
     return train_loader, val_loader, test_loader

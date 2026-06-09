@@ -7,7 +7,11 @@ Translates the robot model from MuffinFresa_ConformalMapping.m and
 the DH parameters from getFinalFrame.m.
 """
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from typing import Tuple, Optional
 
 
@@ -118,6 +122,11 @@ def forward_kinematics_8dof(q: np.ndarray) -> np.ndarray:
     # Full chain
     T_world = T_gantry_base @ T_px @ T_py @ T_arm
 
+    pos = T_world[:3, 3]
+    logger.debug(
+        f"FK 8-DOF: position=({pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f}) m"
+    )
+
     return T_world
 
 
@@ -172,7 +181,11 @@ def manipulability(J: np.ndarray) -> float:
     """
     JJt = J @ J.T
     det_val = np.linalg.det(JJt)
-    return np.sqrt(max(0.0, det_val))
+    mu = np.sqrt(max(0.0, det_val))
+    logger.debug(f"Manipulability index: {mu:.6f}")
+    if mu < 0.01:
+        logger.warning(f"Low manipulability: {mu:.6f} (near singularity)")
+    return mu
 
 
 def check_joint_limits(q: np.ndarray, limits: np.ndarray = JOINT_LIMITS) -> Tuple[bool, np.ndarray]:

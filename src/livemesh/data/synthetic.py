@@ -8,9 +8,13 @@ reconstruction error (Hausdorff distance, normal deviation).
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import trimesh
 from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 def sphere_cap(
@@ -26,6 +30,10 @@ def sphere_cap(
     cap_angle_deg : angular extent from pole
     resolution : grid points per axis
     """
+    logger.info(
+        f"Generating sphere_cap surface: radius={radius:.1f} mm, "
+        f"cap_angle={cap_angle_deg:.1f} deg, resolution={resolution}"
+    )
     cap_angle = np.radians(cap_angle_deg)
     theta = np.linspace(0, cap_angle, resolution)
     phi = np.linspace(0, 2 * np.pi, resolution)
@@ -35,7 +43,9 @@ def sphere_cap(
     y = radius * np.sin(T) * np.sin(P)
     z = radius * np.cos(T)
 
-    return _grid_to_mesh(x, y, z)
+    mesh = _grid_to_mesh(x, y, z)
+    logger.info(f"sphere_cap complete: {len(mesh.vertices)} vertices")
+    return mesh
 
 
 def saddle_surface(
@@ -47,11 +57,17 @@ def saddle_surface(
 
     z = curvature * (x^2 - y^2)
     """
+    logger.info(
+        f"Generating saddle_surface: size={size:.1f} mm, "
+        f"curvature={curvature}, resolution={resolution}"
+    )
     u = np.linspace(-size / 2, size / 2, resolution)
     v = np.linspace(-size / 2, size / 2, resolution)
     U, V = np.meshgrid(u, v)
     Z = curvature * (U**2 - V**2)
-    return _grid_to_mesh(U, V, Z)
+    mesh = _grid_to_mesh(U, V, Z)
+    logger.info(f"saddle_surface complete: {len(mesh.vertices)} vertices")
+    return mesh
 
 
 def wound_crater(
@@ -65,6 +81,10 @@ def wound_crater(
     Gaussian profile: z = -depth * exp(-r^2 / (2*sigma^2))
     surrounded by a flat annulus.
     """
+    logger.info(
+        f"Generating wound_crater: outer_r={outer_radius:.1f} mm, "
+        f"inner_r={inner_radius:.1f} mm, depth={depth:.1f} mm"
+    )
     sigma = inner_radius / 2.5
     u = np.linspace(-outer_radius, outer_radius, resolution)
     v = np.linspace(-outer_radius, outer_radius, resolution)
@@ -73,7 +93,9 @@ def wound_crater(
     Z = -depth * np.exp(-(R**2) / (2 * sigma**2))
     mask = R <= outer_radius
     Z[~mask] = np.nan
-    return _grid_to_mesh(U, V, Z, drop_nan=True)
+    mesh = _grid_to_mesh(U, V, Z, drop_nan=True)
+    logger.info(f"wound_crater complete: {len(mesh.vertices)} vertices")
+    return mesh
 
 
 def cylinder_patch(
@@ -90,6 +112,10 @@ def cylinder_patch(
     arc_angle_deg : angular extent of the patch
     axial_length : extent along cylinder axis (X)
     """
+    logger.info(
+        f"Generating cylinder_patch: radius={radius:.1f} mm, "
+        f"arc={arc_angle_deg:.1f} deg, axial_length={axial_length:.1f} mm"
+    )
     arc = np.radians(arc_angle_deg)
     theta = np.linspace(-arc / 2, arc / 2, resolution)
     x = np.linspace(-axial_length / 2, axial_length / 2, resolution)
@@ -98,7 +124,9 @@ def cylinder_patch(
     Y = radius * np.sin(T)
     Z = radius * np.cos(T)
 
-    return _grid_to_mesh(X, Y, Z)
+    mesh = _grid_to_mesh(X, Y, Z)
+    logger.info(f"cylinder_patch complete: {len(mesh.vertices)} vertices")
+    return mesh
 
 
 def flat_plane(
@@ -106,11 +134,14 @@ def flat_plane(
     resolution: int = 64,
 ) -> trimesh.Trimesh:
     """Flat plane baseline for comparison."""
+    logger.info(f"Generating flat_plane: size={size:.1f} mm, resolution={resolution}")
     u = np.linspace(-size / 2, size / 2, resolution)
     v = np.linspace(-size / 2, size / 2, resolution)
     U, V = np.meshgrid(u, v)
     Z = np.zeros_like(U)
-    return _grid_to_mesh(U, V, Z)
+    mesh = _grid_to_mesh(U, V, Z)
+    logger.info(f"flat_plane complete: {len(mesh.vertices)} vertices")
+    return mesh
 
 
 def add_noise(
@@ -125,11 +156,16 @@ def add_noise(
 
     Returns (N, 3) point cloud in mm.
     """
+    logger.info(
+        f"Adding noise to mesh: {len(mesh.vertices)} vertices, sigma={sigma:.3f} mm"
+    )
     if rng is None:
         rng = np.random.default_rng(42)
     points = np.array(mesh.vertices, dtype=np.float64)
     noise = rng.normal(0, sigma, size=points.shape)
-    return points + noise
+    noisy = points + noise
+    logger.debug(f"Noisy point cloud: {len(noisy)} points, sigma={sigma:.3f} mm")
+    return noisy
 
 
 def add_occlusion(
@@ -142,13 +178,21 @@ def add_occlusion(
 
     If center is None, uses the centroid.
     """
+    logger.info(
+        f"Adding occlusion: {len(points)} points, fraction={fraction:.1%}"
+    )
     if rng is None:
         rng = np.random.default_rng(42)
     if center is None:
         center = points.mean(axis=0)
     dists = np.linalg.norm(points - center, axis=1)
     threshold = np.quantile(dists, fraction)
-    return points[dists > threshold]
+    remaining = points[dists > threshold]
+    logger.info(
+        f"Occlusion complete: {len(remaining)}/{len(points)} points retained "
+        f"({100 * len(remaining) / len(points):.1f}%)"
+    )
+    return remaining
 
 
 def _grid_to_mesh(

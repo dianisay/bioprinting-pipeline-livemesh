@@ -8,9 +8,12 @@ via surface normals, ensuring the nozzle stays orthogonal to the tissue.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from numpy.typing import NDArray
 
 
@@ -41,6 +44,10 @@ def cylinder_conformal_map(
     cyl_radius : cylinder radius in mm
     cyl_center_y, cyl_center_z : cylinder axis center in YZ
     """
+    logger.info(
+        f"Cylinder conformal map: {len(traj_uv)} points, "
+        f"radius={cyl_radius:.2f} mm, center_yz=({cyl_center_y:.2f}, {cyl_center_z:.2f}) mm"
+    )
     u = traj_uv[:, 0]
     v = traj_uv[:, 1]
     h = traj_uv[:, 2]
@@ -75,6 +82,7 @@ def cylinder_conformal_map(
         y_tool = np.cross(z_tool, x_tool)
         tool_frames[i] = np.column_stack([x_tool, y_tool, z_tool])
 
+    logger.info(f"Cylinder conformal map complete: {len(xyz)} points mapped to XYZ")
     return ConformalMapResult(xyz_mm=xyz, normals=normals, tool_frames=tool_frames)
 
 
@@ -99,6 +107,10 @@ def general_conformal_map(
     """
     from scipy.spatial import Delaunay
 
+    logger.info(
+        f"General conformal map: {len(traj_uv)} UV points onto mesh "
+        f"({len(mesh_vertices)} vertices, {len(mesh_faces)} faces)"
+    )
     uv_tri = Delaunay(uv_coords)
 
     uv_query = traj_uv[:, :2]
@@ -110,9 +122,11 @@ def general_conformal_map(
     normal_list = []
     frames_list = []
 
+    out_of_hull = 0
     for i in range(len(traj_uv)):
         si = simplex_indices[i]
         if si == -1:
+            out_of_hull += 1
             _, si = _nearest_simplex(uv_tri, uv_query[i])
 
         tri_verts_uv = uv_coords[uv_tri.simplices[si]]
@@ -138,6 +152,12 @@ def general_conformal_map(
         y_tool = np.cross(z_tool, x_tool)
         frames_list.append(np.column_stack([x_tool, y_tool, z_tool]))
 
+    if out_of_hull > 0:
+        logger.warning(
+            f"{out_of_hull}/{len(traj_uv)} UV points outside Delaunay hull, "
+            f"using nearest-simplex fallback"
+        )
+    logger.info(f"General conformal map complete: {len(xyz_list)} points mapped")
     return ConformalMapResult(
         xyz_mm=np.array(xyz_list),
         normals=np.array(normal_list),

@@ -10,9 +10,12 @@ Ported from your ExtractingGCodeFromWoundSegment.m with added extrusion control.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from numpy.typing import NDArray
 
 
@@ -42,6 +45,10 @@ def toolpath_to_gcode(
     nozzle_diameter_mm : for extrusion volume calculation
     output_path : if set, write G-code to file
     """
+    logger.info(
+        f"G-code generation starting: {len(waypoints)} waypoints, "
+        f"feed_rate={feed_rate:.0f} mm/min, safe_z={safe_z_mm:.2f} mm"
+    )
     if is_deposition is None:
         is_deposition = np.ones(len(waypoints), dtype=bool)
 
@@ -88,7 +95,13 @@ def toolpath_to_gcode(
     if output_path is not None:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_text("\n".join(lines))
+        logger.info(f"G-code saved to {output_path} ({len(lines)} lines)")
 
+    n_deposit = int(np.sum(is_deposition))
+    logger.info(
+        f"G-code generation complete: {len(lines)} lines, "
+        f"{n_deposit} deposition waypoints, {len(waypoints) - n_deposit} travel waypoints"
+    )
     return lines
 
 
@@ -102,6 +115,10 @@ def toolpath_to_ros2_trajectory(
 
     Each dict contains position (mm), orientation (quaternion), and timestamp.
     """
+    logger.info(
+        f"ROS2 trajectory generation: {len(waypoints)} poses, "
+        f"velocity={velocity_mm_s:.1f} mm/s"
+    )
     trajectory = []
     t = 0.0
 
@@ -118,6 +135,10 @@ def toolpath_to_ros2_trajectory(
             "orientation_quat": quat.tolist(),  # [x, y, z, w]
         })
 
+    logger.info(
+        f"ROS2 trajectory complete: {len(trajectory)} poses, "
+        f"total_duration={t:.2f} s"
+    )
     return trajectory
 
 

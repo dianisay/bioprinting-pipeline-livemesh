@@ -1,6 +1,10 @@
 """Evaluation script: compute all metrics on test set from a saved checkpoint."""
 
+import logging
+
 import torch
+
+logger = logging.getLogger(__name__)
 import numpy as np
 import json
 from pathlib import Path
@@ -75,8 +79,9 @@ def evaluate(
         batch_size=batch_size,
     )
 
-    print(f"Evaluating {decoder_type} on {len(test_loader.dataset)} test samples...")
-
+    logger.info(
+        f"Evaluating {decoder_type} decoder on {len(test_loader.dataset)} test samples"
+    )
     all_metrics = {
         "chamfer": [],
         "hausdorff": [],
@@ -120,23 +125,19 @@ def evaluate(
             "median": float(np.median(arr)),
         }
 
-    # Print results
-    print(f"\n{'='*60}")
-    print(f"RESULTS: {decoder_type} decoder ({results['num_samples']} samples)")
-    print(f"{'='*60}")
-    print(f"  {'Metric':<15} {'Mean':>8} {'Std':>8} {'Min':>8} {'Max':>8}")
-    print(f"  {'-'*47}")
+    logger.info(f"Evaluation results for {decoder_type} ({results['num_samples']} samples):")
     for m in ["chamfer", "hausdorff", "iou", "closure", "ordering"]:
         r = results[m]
-        print(f"  {m:<15} {r['mean']:>8.4f} {r['std']:>8.4f} {r['min']:>8.4f} {r['max']:>8.4f}")
-
+        logger.info(
+            f"  {m}: mean={r['mean']:.4f}, std={r['std']:.4f}, "
+            f"min={r['min']:.4f}, max={r['max']:.4f}"
+        )
     # Save
     if output_path is None:
         output_path = str(Path(checkpoint_path).parent / "eval_results.json")
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\nResults saved to: {output_path}")
-
+    logger.info(f"Evaluation results saved to {output_path}")
     return results
 
 
