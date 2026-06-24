@@ -35,6 +35,7 @@ dependencies = [
     "numpy-stl>=3.0",
     "PuLP>=2.7",
     "pandas>=2.0",
+    "geodesic-currents @ git+https://github.com/dianisay/geodesic-currents.git",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,9 @@ dev = [
 robot = [
     "roboticstoolbox-python>=1.1",
     "spatialmath-python>=1.1",
+]
+hardware = [
+    "pyrealsense2>=2.50.0",
 ]
 ot = [
     "pot>=0.9",

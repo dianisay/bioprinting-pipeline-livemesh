@@ -6,6 +6,8 @@ LiveMesh is a unified Python pipeline that sees a wound, reconstructs its 3D sur
 
 Developed as part of the doctoral thesis *"CNN-Based ML for 3D Motion Planning and Control in In-Situ Robotic Bioprinters"* at [Tecnologico de Monterrey](https://tec.mx), in collaboration with the [Geometric Data Processing Group](https://geometry.csail.mit.edu/) at MIT CSAIL (Prof. Justin Solomon).
 
+> **Evolution:** LiveMesh extends [WoundBioprinter](https://github.com/dianisay/diana-bioprinting-pipeline) (Phase 1, Tec de Monterrey) with geodesic toolpath planning via [geodesic-currents](https://github.com/dianisay/geodesic-currents), Poisson surface reconstruction, and optimal-transport coverage metrics developed during the MIT collaboration.
+
 ---
 
 ## What's inside
@@ -549,6 +551,29 @@ pytest -v                       # verbose output
 | matplotlib | >= 3.7 | Publication figures |
 
 Full list in `pyproject.toml`.
+
+---
+
+## Closed-Loop Controller (from WoundBioprinter)
+
+LiveMesh inherits the closed-loop depth feedback system from WoundBioprinter:
+
+```python
+from livemesh.controller import PrintingLoopController, DepthSensorModel
+
+sensor = DepthSensorModel()  # simulated RealSense D405
+controller = PrintingLoopController(sensor=sensor, num_layers=4)
+
+# Run scan-deposit-verify-correct loop
+result = controller.run(wound_depth_profile, planned_trajectory)
+print(f"Fill accuracy: {result.fill_fraction:.0%}")
+```
+
+The `controller` module provides:
+- `DepthSensorModel` / `RealSenseD405` — simulated and hardware depth sensing
+- `fuse_depth` — confidence-weighted blending of predicted + measured depth
+- `PrintingLoopController` — full closed-loop printing orchestration
+- `bridge_decoder_to_planner` — connects perception output to trajectory planning
 
 ---
 
