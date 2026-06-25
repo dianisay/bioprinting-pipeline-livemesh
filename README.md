@@ -6,7 +6,9 @@ LiveMesh is a unified Python pipeline that sees a wound, reconstructs its 3D sur
 
 Developed as part of the doctoral thesis *"CNN-Based ML for 3D Motion Planning and Control in In-Situ Robotic Bioprinters"* at [Tecnologico de Monterrey](https://tec.mx), in collaboration with the [Geometric Data Processing Group](https://geometry.csail.mit.edu/) at MIT CSAIL (Prof. Justin Solomon).
 
-> **Evolution:** LiveMesh extends [WoundBioprinter](https://github.com/dianisay/diana-bioprinting-pipeline) (Phase 1, Tec de Monterrey) with geodesic toolpath planning via [geodesic-currents](https://github.com/dianisay/geodesic-currents), Poisson surface reconstruction, and optimal-transport coverage metrics developed during the MIT collaboration.
+> **Evolution:** LiveMesh extends [bioprinting-pipeline-honeycomb](https://github.com/dianisay/bioprinting-pipeline-honeycomb) (Phase 1, Tec de Monterrey) with geodesic toolpath planning via [geodesic-currents](https://github.com/dianisay/geodesic-currents), Poisson surface reconstruction, and optimal-transport coverage metrics developed during the MIT collaboration.
+>
+> For the unified multi-strategy system (AI-driven layer decomposition), see [bioprinting-pipeline-multi-strategy-toolpath](https://github.com/dianisay/bioprinting-pipeline-multi-strategy-toolpath).
 
 ---
 
