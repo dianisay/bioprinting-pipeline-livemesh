@@ -185,19 +185,26 @@ class MultiViewWoundDataset:
 
         # Create directories
         train_dir = self.output_dir / "train"
+        val_dir = self.output_dir / "val"
         test_dir = self.output_dir / "test"
         train_dir.mkdir(parents=True, exist_ok=True)
+        val_dir.mkdir(parents=True, exist_ok=True)
         test_dir.mkdir(parents=True, exist_ok=True)
 
-        # Split: 80% train, 20% test
-        num_train = int(0.8 * self.num_samples)
+        # Split: 70% train, 15% val, 15% test
+        num_train = int(0.70 * self.num_samples)
+        num_val = int(0.15 * self.num_samples)
 
         all_metadata = []
 
         for sample_idx in range(self.num_samples):
             # Determine split
-            is_train = sample_idx < num_train
-            split_dir = train_dir if is_train else test_dir
+            if sample_idx < num_train:
+                split_dir = train_dir
+            elif sample_idx < num_train + num_val:
+                split_dir = val_dir
+            else:
+                split_dir = test_dir
 
             # Create sample directory
             sample_name = f"sample_{sample_idx:04d}"

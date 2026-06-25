@@ -567,8 +567,8 @@ sensor = DepthSensorModel()  # simulated RealSense D405
 controller = PrintingLoopController(sensor=sensor, num_layers=4)
 
 # Run scan-deposit-verify-correct loop
-result = controller.run(wound_depth_profile, planned_trajectory)
-print(f"Fill accuracy: {result.fill_fraction:.0%}")
+result = controller.run_full_cycle(wound_depth_profile)
+print(f"Fill accuracy: {result['summary']['fill_fraction']:.0%}")
 ```
 
 The `controller` module provides:

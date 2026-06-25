@@ -12,9 +12,9 @@ estimate and the physical sensor's direct measurement.
 import numpy as np
 from typing import Dict, Optional, Tuple
 
-from utils.logging_config import get_logger
+import logging
 
-logger = get_logger("modules.depth_fusion")
+logger = logging.getLogger(__name__)
 
 
 class DepthFusionConfig:

@@ -13,9 +13,9 @@ compatible with plan_full_trajectory().
 import numpy as np
 from typing import Dict, Optional, Tuple
 
-from utils.logging_config import get_logger
+import logging
 
-logger = get_logger("modules.wound_to_trajectory")
+logger = logging.getLogger(__name__)
 
 
 def decoder_output_to_physical(

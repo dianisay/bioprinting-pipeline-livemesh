@@ -15,11 +15,11 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
-from utils.logging_config import get_logger
+import logging
 from .depth_sensor import DepthSensorModel, DepthSensorBase
 from .depth_fusion import fuse_depth, DepthFusionConfig
 
-logger = get_logger("modules.closed_loop_controller")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

@@ -19,9 +19,9 @@ import numpy as np
 from typing import Dict, Optional, Tuple
 from abc import ABC, abstractmethod
 
-from utils.logging_config import get_logger
+import logging
 
-logger = get_logger("modules.depth_sensor")
+logger = logging.getLogger(__name__)
 
 
 # D405 specifications (from Intel datasheet)
