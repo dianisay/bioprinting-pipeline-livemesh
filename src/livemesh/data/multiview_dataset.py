@@ -234,12 +234,18 @@ class MultiViewWoundDataset:
             np.save(sample_dir / "layer_amounts.npy", layer_amounts)
 
             # Metadata
+            if sample_idx < num_train:
+                split_name = "train"
+            elif sample_idx < num_train + num_val:
+                split_name = "val"
+            else:
+                split_name = "test"
             all_metadata.append({
                 "sample_name": sample_name,
                 "centroid": wound.centroid.tolist(),
                 "mean_radius": float(wound.radii.mean()),
                 "mean_depth": float(wound.depth_profile.mean()),
-                "split": "train" if is_train else "test",
+                "split": split_name,
             })
 
             if (sample_idx + 1) % 10 == 0:
@@ -247,7 +253,8 @@ class MultiViewWoundDataset:
 
         print(f"\n✓ Dataset saved to {self.output_dir}")
         print(f"  Train: {num_train} samples")
-        print(f"  Test: {self.num_samples - num_train} samples")
+        print(f"  Val:   {num_val} samples")
+        print(f"  Test:  {self.num_samples - num_train - num_val} samples")
         print(f"  Views per sample: {self.num_views}")
         print(f"  Image size: {self.image_size}×{self.image_size}")
 
